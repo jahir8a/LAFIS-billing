@@ -1,8 +1,7 @@
-version: '3'
+version: '3.4'
 
 
 services:
-
   
   nats-server:
     image: nats:latest
@@ -40,37 +39,38 @@ services:
     environment:
       - PORT=3001
       - NATS_SERVERS=nats://nats-server:4222
-      - DATABASE_URL=file:./dev.db
+      - DATABASE_URL=postgresql://postgres:a123456Z@orders-db:5432/LAFIS?schema=Product
 
+  products-dapr:
+    image: "daprio/daprd:latest"
+    command: ["./daprd", "-app-id", "products-service", "-app-port", "3001", "--app-protocol", "http", "--dapr-http-port", "5001","-components-path", "/components"]
+    depends_on: 
+      - products-ms
+    volumes:
+      - ./dapr/components/docker-compose:/components
   
   # Orders MS
   orders-ms:
-    depends_on:
-      - orders-db
     build: ./orders-ms
     volumes:
       - ./orders-ms/src:/usr/src/app/src
     command: npm run start:dev
     environment:
       - PORT=3002
-      - DATABASE_URL=postgresql://postgres:123456@orders-db:5432/ordersdb?schema=public
+      - DATABASE_URL=postgresql://postgres:a123456Z@orders-db:5432/LAFIS?schema=Order
       - NATS_SERVERS=nats://nats-server:4222
 
-
-
-  # Orders DB
   orders-db:
-    container_name: orders_database
-    image: postgres:16.2
-    restart: always
-    volumes:
-      - ./orders-ms/postgres:/var/lib/postgresql/data
-    ports:
-      - 5432:5432
+    image: postgres:12
+    container_name: billing
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=123456
-      - POSTGRES_DB=ordersdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: a123456Z
+      PGDATA: /data/postgres
+    volumes:
+       - postgres-db:/data/postgres
+    ports:
+      - "5432:5432"
 
 # ======================
 # Payments Microservice
@@ -91,3 +91,6 @@ services:
       - STRIPE_CANCEL_URL=${STRIPE_CANCEL_URL}
       - STRIPE_ENDPOINT_SECRET=${STRIPE_ENDPOINT_SECRET}
       
+volumes:
+  postgres-db:
+    driver: local
